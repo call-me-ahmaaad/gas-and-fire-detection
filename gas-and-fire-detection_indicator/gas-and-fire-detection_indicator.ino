@@ -1,7 +1,9 @@
-#include <WiFi.h>                // INCLUDE THE LIBRARY FOR WIFI FUNCTIONALITY
-#include <WiFiClientSecure.h>    // INCLUDE THE LIBRARY FOR SECURE WIFI CLIENT CONNECTIONS
-#include <PubSubClient.h>        // INCLUDE THE LIBRARY FOR MQTT PROTOCOL IMPLEMENTATION
-#include "time.h"                // INCLUDE THE LIBRARY FOR TIME FUNCTIONALITY
+// LIBRARY CONFIGURATION
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
 
 // WIFI CONFIGURATION
 const char* ssid = "Zakira Lestari2";
@@ -47,126 +49,167 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
-// TIME SERVER CONFIGURATION
-const char* ntpServer = "time.nist.gov";
-const long gmtOffset_sec = 0;
-const int daylightOffset_sec = 25200;
+// LCD Sreen Width and Height
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
 
-// SENSOR PIN CONFIGURATION
-const int fireSensor = 25;
-const int gasSensor = 35;
+// LCD OLED Configuration
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// GAS LEDs
+const int gasRed = 5;
+const int gasGreen = 18;
+const int gasBlue = 19;
+
+// FIRE LED
+const int fireLED = 2;
+
+// FIRE BUZZER
+const int fireBuzzer = 4;
+
+// GLOBAL VARIABLES OF SENSOR DATA
+// String fireDetect;
+int gasValue;
 
 void setup() {
   Serial.begin(115200);
 
-  // CONNECT TO WIFI NETWORK
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi CONNECTED.");
+  setupWifi();
 
-  // SET MQTT CLIENT CERTIFICATE
   espClient.setCACert(root_ca);
 
-  // SET MQTT SERVER AND PORT
   client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
 
-  // INITIALIZE TIME
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // Inisialisasi OLED
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Sesuaikan alamat I2C jika perlu
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;)
+      ;  // Jika gagal, berhenti di sini
+  }
 
-  // SET SENSOR PIN MODE
-  pinMode(fireSensor, INPUT);
-  pinMode(gasSensor, INPUT);
+  // Membersihkan tampilan OLED
+  oled.clearDisplay();
+  oled.display();
+
+  pinMode(fireLED, OUTPUT);
+
+  pinMode(gasRed, OUTPUT);
+  pinMode(gasGreen, OUTPUT);
+  pinMode(gasBlue, OUTPUT);
 }
 
 void loop() {
-  // MAIN SENSOR FUNCTION
-  sensorMain();
-
-  // WAIT 2 SECONDS BEFORE NEXT LOOP
-  delay(2000);
-}
-
-void sensorMain() {
-  // CHECK MQTT CONNECTION AND RECONNECT IF NOT CONNECTED
   if (!client.connected()) {
     reconnect();
   }
+  client.loop();
 
-  // GET THE CURRENT TIME IN STRING FORMAT
-  char timeStr[64];
-  getFormattedTime(timeStr, sizeof(timeStr));
-
-  // READ VALUES FROM SENSORS (IR FLAME SENSOR AND MQ-5 GAS SENSOR)
-  bool fireDetect = digitalRead(fireSensor);
-  int gasValue = analogRead(gasSensor);
-
-  // PUBLISH SENSOR DATA TO MQTT AND STORE THE STATUS
-  bool publishStatus = sensor_publishMQTT(fireDetect, gasValue);
-
-  // PRINT MONITORING RESULTS AND MQTT PUBLISH STATUS
-  printResults(fireDetect, gasValue, timeStr, publishStatus);
+  printLCD();
 }
 
-bool sensor_publishMQTT(bool fireDetect, int gasValue) {
-  // CONVERT SENSOR DATA TO STRING
-  String fireData = String(fireDetect);
-  String gasData = String(gasValue);
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("]: ");
 
-  // PUBLISH SENSOR DATA TO MQTT TOPICS
-  bool firePublished = client.publish(fireTopic, fireData.c_str());
-  bool gasPublished = client.publish(gasTopic, gasData.c_str());
-
-  // RETURN PUBLISH STATUS: TRUE IF BOTH DATA WERE PUBLISHED SUCCESSFULLY
-  return firePublished && gasPublished;
-}
-
-void printResults(bool fireDetect, int gasValue, char* timeStr, bool publishStatus) {
-  Serial.printf("==============================================\n");
-  Serial.printf("                MONITORING REPORT             \n\n");
-  Serial.printf("Date/Time           : %s\n\n", timeStr);
-  Serial.printf("Sensor Readings:\n");
-  Serial.printf("- Fire Detection    : %s\n", fireDetect ? "NOT DETECTED" : "DETECTED");
-  Serial.printf("- Gas Value         : %d ppm\n\n", gasValue);
-  Serial.printf("MQTT Publish Status : ");
-  if (publishStatus) {
-    Serial.printf("SUCCESSFULLY PUBLISHED!\n");
-  } else {
-    Serial.printf("FAILED TO PUBLISH ONE OR MORE MESSAGES!\n");
+  String message;
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+    message += (char)payload[i];
   }
-  Serial.printf("==============================================\n\n");
+  Serial.println();
+
+  if (String(topic) == fireTopic) {
+    if (message == "1") {
+      digitalWrite(fireLED, LOW);
+      Serial.println("FIRE NOT DETECTED");
+      noTone(fireBuzzer);
+    } else if (message == "0") {
+      digitalWrite(fireLED, HIGH);
+      tone(fireBuzzer, 2000);
+      Serial.println("FIRE DETECTED!");
+    }
+  } else if (String(topic) == gasTopic) {
+    gasValue = message.toInt();
+    if (gasValue < 400) {
+      digitalWrite(gasRed, HIGH);
+      digitalWrite(gasGreen, LOW);
+      digitalWrite(gasBlue, HIGH);
+    } else if (gasValue >= 400 && gasValue <= 1000) {
+      digitalWrite(gasRed, LOW);
+      digitalWrite(gasGreen, LOW);
+      digitalWrite(gasBlue, HIGH);
+    } else {
+      digitalWrite(gasRed, LOW);
+      digitalWrite(gasGreen, HIGH);
+      digitalWrite(gasBlue, HIGH);
+    }
+  }
+
+  Serial.println();
 }
 
-void getFormattedTime(char* buffer, size_t bufferSize) {
-  // GET LOCAL TIME AND FORMAT INTO STRING
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    Serial.println("FAILED TO OBTAIN TIME");
-    snprintf(buffer, bufferSize, "N/A");
-    return;
+void setupWifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
   }
-  strftime(buffer, bufferSize, "%A, %B %d %Y %H:%M:%S", &timeinfo);
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void reconnect() {
-  // LOOP UNTIL SUCCESSFULLY RECONNECTED TO MQTT BROKER
   while (!client.connected()) {
-    Serial.print("ATTEMPTING MQTT CONNECTION...");
-    // TRY TO RECONNECT TO MQTT BROKER WITH CREDENTIALS
-    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
-      Serial.println("CONNECTED");
-      // SUBSCRIBE TO TOPICS OR SEND MESSAGES IF NEEDED
+    String client_id = "sub_gas-and-fire-detection_indicator";
+    client_id += String(WiFi.macAddress());
+    Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect(client_id.c_str(), mqtt_user, mqtt_password)) {
+      Serial.println("connected");
+      client.subscribe(fireTopic);
+      client.subscribe(gasTopic);
     } else {
-      Serial.print("FAILED, RC=");
+      Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" TRY AGAIN IN 5 SECONDS");
-      // WAIT 5 SECONDS BEFORE RETRYING
+      Serial.println(" try again in 5 seconds");
       delay(5000);
     }
   }
+}
+
+void printLCD() {
+  oled.clearDisplay();  // Clear the display
+  oled.setTextColor(WHITE);
+
+  // Set small text for "Gas Value"
+  oled.setTextSize(1);
+  oled.setCursor(0, 0);  // Top-left corner
+  oled.print("Gas Value");
+
+  // Calculate position for the gas value
+  int valueWidth = 12 * String(gasValue).length();      // Width of the gas value based on the number of digits
+  int valuePosition = (SCREEN_WIDTH - valueWidth) / 2;  // Center the value horizontally
+
+  // Set large text for gas value
+  oled.setTextSize(2);
+  oled.setCursor(valuePosition, 12);  // Position the value
+  oled.printf("%d", gasValue);
+
+  // Set small text for "ppm" as subscript
+  oled.setTextSize(1);
+  oled.setCursor(valuePosition + valueWidth + 2, 22);  // Position "ppm" just to the right of the gas value
+  oled.print("ppm");
+
+  oled.display();  // Display the changes
 }
