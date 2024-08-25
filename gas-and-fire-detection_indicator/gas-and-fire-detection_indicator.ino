@@ -6,54 +6,29 @@
 #include <PubSubClient.h>
 
 // WIFI CONFIGURATION
-const char* ssid = "Zakira Lestari2";
-const char* password = "muhammad2003";
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
 
 // MQTT BROKER CONFIGURATION
-const char* mqtt_server = "a3de186b.ala.asia-southeast1.emqxsl.com";
-const int mqtt_port = 8883;
-const char* mqtt_user = "mentoring";
-const char* mqtt_password = "mentoring";
+const char* mqtt_server = "YOUR_MQTT_BROKER_SERVER";
+const int mqtt_port = YOUR_MQTT_BROKER_PORT;
+const char* mqtt_user = "YOUR_MQTT_BROKER_USERNAME";
+const char* mqtt_password = "YOUR_MQTT_BROKER_PASSWORD";
 
 // MQTT TOPIC CONFIGURATION
-const char* fireTopic = "gas-fire-detection/indicator/fire";
-const char* gasTopic = "gas-fire-detection/indicator/gas";
+const char* fireTopic = "YOUR_MQTT_TOPICS";
+const char* gasTopic = "YOUR_MQTT_TOPICS";
 
 // MQTT BROKER CERTIFICATE
-static const char* root_ca PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
-QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
-MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
-b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
-9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
-CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
-nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
-43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
-T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
-gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
-BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
-TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
-DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
-hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
-06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
-PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
-YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
-CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
------END CERTIFICATE-----
-)EOF";
+static const char* root_ca PROGMEM = "YOUR_CA_CERTIFICATE";
 
 // WIFI AND MQTT CLIENT CONFIGURATION
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
-// LCD Sreen Width and Height
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
-
-// LCD OLED Configuration
+// OLED SCREEN CONFIGURATION
+const int SCREEN_WIDTH = 128;
+const int SCREEN_HEIGHT = 32;
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // GAS LEDs
@@ -67,33 +42,28 @@ const int fireLED = 2;
 // FIRE BUZZER
 const int fireBuzzer = 4;
 
-// GLOBAL VARIABLES OF SENSOR DATA
-// String fireDetect;
+// GLOBAL VARIABLE OF SENSOR DATA
 int gasValue;
 
 void setup() {
   Serial.begin(115200);
 
+  // Initializing WiFi and MQTT Connection
   setupWifi();
-
   espClient.setCACert(root_ca);
-
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 
-  // Inisialisasi OLED
-  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Sesuaikan alamat I2C jika perlu
+  // Initializing the OLED display
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ;  // Jika gagal, berhenti di sini
+    for (;;);
   }
-
-  // Membersihkan tampilan OLED
   oled.clearDisplay();
   oled.display();
 
+  // Setting GPIO pins as output for LEDs
   pinMode(fireLED, OUTPUT);
-
   pinMode(gasRed, OUTPUT);
   pinMode(gasGreen, OUTPUT);
   pinMode(gasBlue, OUTPUT);
@@ -101,13 +71,14 @@ void setup() {
 
 void loop() {
   if (!client.connected()) {
-    reconnect();
+    reconnect(); // Reconnecting to MQTT broker if the connection is lost
   }
-  client.loop();
+  client.loop(); // Listening for MQTT messages
 
-  printLCD();
+  printLCD(); // Updating the OLED display with the latest sensor data
 }
 
+// THIS FUNCTION IS CALLED WHEN AN MQTT MESSAGE IS RECEIVED
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -120,6 +91,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
 
+  // Handling messages for fire detection
   if (String(topic) == fireTopic) {
     if (message == "1") {
       digitalWrite(fireLED, LOW);
@@ -130,6 +102,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       tone(fireBuzzer, 2000);
       Serial.println("FIRE DETECTED!");
     }
+  // Handling messages for gas detection
   } else if (String(topic) == gasTopic) {
     gasValue = message.toInt();
     if (gasValue < 400) {
@@ -150,13 +123,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
+// FUNCTION TO CONNECT TO THE WIFI NETWORK
 void setupWifi() {
   delay(10);
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password); // Start connecting to the Wi-Fi network
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -166,19 +140,20 @@ void setupWifi() {
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP()); // Print the local IP address after successful connection
 }
 
+// FUNCTION TO RECONNECT TO THE MQTT BROKER IF THE CONNECTION IS LOST
 void reconnect() {
   while (!client.connected()) {
-    String client_id = "sub_gas-and-fire-detection_indicator";
+    String client_id = "YOUR_CLIENT_ID";
     client_id += String(WiFi.macAddress());
     Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
     Serial.print("Attempting MQTT connection...");
     if (client.connect(client_id.c_str(), mqtt_user, mqtt_password)) {
       Serial.println("connected");
-      client.subscribe(fireTopic);
-      client.subscribe(gasTopic);
+      client.subscribe(fireTopic); // Subscribe to fire detection topic
+      client.subscribe(gasTopic);  // Subscribe to gas detection topic
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -188,18 +163,19 @@ void reconnect() {
   }
 }
 
+// FUNCTION TO UPDATE THE OLED DISPLAY WITH THE GAS SENSOR VALUE
 void printLCD() {
-  oled.clearDisplay();  // Clear the display
+  oled.clearDisplay();
   oled.setTextColor(WHITE);
 
   // Set small text for "Gas Value"
   oled.setTextSize(1);
-  oled.setCursor(0, 0);  // Top-left corner
+  oled.setCursor(0, 0);
   oled.print("Gas Value");
 
   // Calculate position for the gas value
-  int valueWidth = 12 * String(gasValue).length();      // Width of the gas value based on the number of digits
-  int valuePosition = (SCREEN_WIDTH - valueWidth) / 2;  // Center the value horizontally
+  int valueWidth = 12 * String(gasValue).length();
+  int valuePosition = (SCREEN_WIDTH - valueWidth) / 2;
 
   // Set large text for gas value
   oled.setTextSize(2);

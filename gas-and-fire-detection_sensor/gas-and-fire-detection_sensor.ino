@@ -1,47 +1,25 @@
-#include <WiFi.h>                // INCLUDE THE LIBRARY FOR WIFI FUNCTIONALITY
-#include <WiFiClientSecure.h>    // INCLUDE THE LIBRARY FOR SECURE WIFI CLIENT CONNECTIONS
-#include <PubSubClient.h>        // INCLUDE THE LIBRARY FOR MQTT PROTOCOL IMPLEMENTATION
-#include "time.h"                // INCLUDE THE LIBRARY FOR TIME FUNCTIONALITY
+// LIBRARY CONFIGURATION
+#include <WiFi.h>            
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>    
+#include "time.h"            
 
 // WIFI CONFIGURATION
-const char* ssid = "Zakira Lestari2";
-const char* password = "muhammad2003";
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
 
 // MQTT BROKER CONFIGURATION
-const char* mqtt_server = "a3de186b.ala.asia-southeast1.emqxsl.com";
-const int mqtt_port = 8883;
-const char* mqtt_user = "mentoring";
-const char* mqtt_password = "mentoring";
+const char* mqtt_server = "YOUR_MQTT_BROKER_SERVER";
+const int mqtt_port = YOUR_MQTT_BROKER_PORT;
+const char* mqtt_user = "YOUR_MQTT_BROKER_USERNAME";
+const char* mqtt_password = "YOUR_MQTT_BROKER_PASSWORD";
 
 // MQTT TOPIC CONFIGURATION
-const char* fireTopic = "gas-fire-detection/indicator/fire";
-const char* gasTopic = "gas-fire-detection/indicator/gas";
+const char* fireTopic = "YOUR_MQTT_TOPICS";
+const char* gasTopic = "YOUR_MQTT_TOPICS";
 
 // MQTT BROKER CERTIFICATE
-static const char* root_ca PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
-QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
-MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
-b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
-9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
-CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
-nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
-43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
-T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
-gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
-BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
-TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
-DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
-hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
-06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
-PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
-YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
-CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
------END CERTIFICATE-----
-)EOF";
+static const char* root_ca PROGMEM = "YOUR_CA_CERTIFICATE";
 
 // WIFI AND MQTT CLIENT CONFIGURATION
 WiFiClientSecure espClient;
@@ -59,73 +37,63 @@ const int gasSensor = 35;
 void setup() {
   Serial.begin(115200);
 
-  // CONNECT TO WIFI NETWORK
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi CONNECTED.");
-
-  // SET MQTT CLIENT CERTIFICATE
+  // Initializing WiFi and MQTT Connection
+  setupWifi();
   espClient.setCACert(root_ca);
-
-  // SET MQTT SERVER AND PORT
   client.setServer(mqtt_server, mqtt_port);
 
-  // INITIALIZE TIME
+  // Initializing Time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
-  // SET SENSOR PIN MODE
+  // Setting GPIO pins as input for sensors
   pinMode(fireSensor, INPUT);
   pinMode(gasSensor, INPUT);
 }
 
 void loop() {
-  // MAIN SENSOR FUNCTION
+  if (!client.connected()) {
+    reconnect(); // Reconnecting to MQTT broker if the connection is lost
+  }
+
+  // Run sensorMain() function
   sensorMain();
 
-  // WAIT 2 SECONDS BEFORE NEXT LOOP
+  // Delay 2s for each loop
   delay(2000);
 }
 
+// FUNCTION TO RUN THE SENSOR MONITORING
 void sensorMain() {
-  // CHECK MQTT CONNECTION AND RECONNECT IF NOT CONNECTED
-  if (!client.connected()) {
-    reconnect();
-  }
-
-  // GET THE CURRENT TIME IN STRING FORMAT
+  // Get the current time in string format
   char timeStr[64];
   getFormattedTime(timeStr, sizeof(timeStr));
 
-  // READ VALUES FROM SENSORS (IR FLAME SENSOR AND MQ-5 GAS SENSOR)
+  // Read the value from sensors
   bool fireDetect = digitalRead(fireSensor);
   int gasValue = analogRead(gasSensor);
 
-  // PUBLISH SENSOR DATA TO MQTT AND STORE THE STATUS
+  // Publish sensor data to topic and get publish status
   bool publishStatus = sensor_publishMQTT(fireDetect, gasValue);
 
-  // PRINT MONITORING RESULTS AND MQTT PUBLISH STATUS
+  // Print monitoring results and publish status
   printResults(fireDetect, gasValue, timeStr, publishStatus);
 }
 
+// FUNCTION TO SEND SENSOR DATA TO MQTT TOPICS AND GET THE PUBLISH STATUS
 bool sensor_publishMQTT(bool fireDetect, int gasValue) {
-  // CONVERT SENSOR DATA TO STRING
+  // Convert sensor data to string
   String fireData = String(fireDetect);
   String gasData = String(gasValue);
 
-  // PUBLISH SENSOR DATA TO MQTT TOPICS
+  // Publish sensor data to MQTT topics
   bool firePublished = client.publish(fireTopic, fireData.c_str());
   bool gasPublished = client.publish(gasTopic, gasData.c_str());
 
-  // RETURN PUBLISH STATUS: TRUE IF BOTH DATA WERE PUBLISHED SUCCESSFULLY
+  // Return publish status: TRUE if both data were published successfully
   return firePublished && gasPublished;
 }
 
+// FUNCTION TO PRINT RESULTS IN SERIAL MONITOR
 void printResults(bool fireDetect, int gasValue, char* timeStr, bool publishStatus) {
   Serial.printf("==============================================\n");
   Serial.printf("                MONITORING REPORT             \n\n");
@@ -142,8 +110,8 @@ void printResults(bool fireDetect, int gasValue, char* timeStr, bool publishStat
   Serial.printf("==============================================\n\n");
 }
 
+// FUNCTION GET CURRENT LOCAL TIME AND FORMAT TO STRING
 void getFormattedTime(char* buffer, size_t bufferSize) {
-  // GET LOCAL TIME AND FORMAT INTO STRING
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     Serial.println("FAILED TO OBTAIN TIME");
@@ -153,20 +121,40 @@ void getFormattedTime(char* buffer, size_t bufferSize) {
   strftime(buffer, bufferSize, "%A, %B %d %Y %H:%M:%S", &timeinfo);
 }
 
+// FUNCTION TO RECONNECT TO THE MQTT BROKER IF THE CONNECTION IS LOST
 void reconnect() {
-  // LOOP UNTIL SUCCESSFULLY RECONNECTED TO MQTT BROKER
   while (!client.connected()) {
-    Serial.print("ATTEMPTING MQTT CONNECTION...");
-    // TRY TO RECONNECT TO MQTT BROKER WITH CREDENTIALS
-    if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
-      Serial.println("CONNECTED");
-      // SUBSCRIBE TO TOPICS OR SEND MESSAGES IF NEEDED
+    String client_id = "YOUR_CLIENT_ID";
+    client_id += String(WiFi.macAddress());
+    Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect(client_id.c_str(), mqtt_user, mqtt_password)) {
+      Serial.println("connected");
     } else {
-      Serial.print("FAILED, RC=");
+      Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" TRY AGAIN IN 5 SECONDS");
-      // WAIT 5 SECONDS BEFORE RETRYING
+      Serial.println(" try again in 5 seconds");
       delay(5000);
     }
   }
+}
+
+// FUNCTION TO CONNECT TO THE WIFI NETWORK
+void setupWifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password); // Start connecting to the Wi-Fi network
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP()); // Print the local IP address after successful connection
 }
