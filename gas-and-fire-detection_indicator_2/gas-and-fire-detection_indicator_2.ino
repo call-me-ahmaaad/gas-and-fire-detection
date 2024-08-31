@@ -33,11 +33,8 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // GAS LEDs
 const int gasRed = 5;
-const int gasGreen = 18;
-const int gasBlue = 19;
-
-// FIRE LED
-const int fireLED = 2;
+const int gasYellow = 18;
+const int gasGreen = 19;
 
 // FIRE BUZZER
 const int fireBuzzer = 4;
@@ -59,10 +56,9 @@ void setup() {
   lcd.backlight();
 
   // Setting GPIO pins as output for LEDs
-  pinMode(fireLED, OUTPUT);
   pinMode(gasRed, OUTPUT);
+  pinMode(gasYellow, OUTPUT);
   pinMode(gasGreen, OUTPUT);
-  pinMode(gasBlue, OUTPUT);
 }
 
 void loop() {
@@ -90,11 +86,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Handling messages for fire detection
   if (String(topic) == fireTopic) {
     if (message == "1") {
-      digitalWrite(fireLED, LOW);
       Serial.println("FIRE NOT DETECTED");
       noTone(fireBuzzer);
     } else if (message == "0") {
-      digitalWrite(fireLED, HIGH);
       tone(fireBuzzer, 2000);
       Serial.println("FIRE DETECTED!");
     }
@@ -103,16 +97,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
     gasValue = message.toInt();
     if (gasValue < 400) {
       digitalWrite(gasRed, LOW);
-      digitalWrite(gasGreen, LOW);
-      digitalWrite(gasBlue, HIGH);
+      digitalWrite(gasYellow, LOW);
+      digitalWrite(gasGreen, HIGH);
     } else if (gasValue >= 400 && gasValue <= 1000) {
       digitalWrite(gasRed, LOW);
-      digitalWrite(gasGreen, HIGH);
-      digitalWrite(gasBlue, LOW);
+      digitalWrite(gasYellow, HIGH);
+      digitalWrite(gasGreen, LOW);
     } else {
       digitalWrite(gasRed, HIGH);
+      digitalWrite(gasYellow, LOW);
       digitalWrite(gasGreen, LOW);
-      digitalWrite(gasBlue, LOW);
     }
   }
 
